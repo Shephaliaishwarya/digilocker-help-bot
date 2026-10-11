@@ -10,7 +10,84 @@ function normalize(text) {
     .filter(Boolean);
 }
 
+
 function findAnswer(question, faqs) {
+  const text = String(question || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (!text) return null;
+
+  // Match specific topics before using general keyword matching.
+  const topicRules = [
+    {
+      keywords: [
+        "register", "registration", "sign up", "signup",
+        "create account", "new account"
+      ],
+      categoryWords: ["registration", "register", "account creation"]
+    },
+    {
+      keywords: [
+        "otp", "one time password", "verification code",
+        "not receiving", "not received", "sms code"
+      ],
+      categoryWords: ["otp", "verification", "login"]
+    },
+    {
+      keywords: [
+        "digital document", "issued document", "certificate",
+        "download document", "access document", "my documents"
+      ],
+      categoryWords: ["document", "certificate", "issued documents"]
+    }
+  ];
+
+  for (const rule of topicRules) {
+    if (rule.keywords.some(keyword => text.includes(keyword))) {
+      const candidates = faqs.filter(faq => {
+        const content =
+          `${faq.question || ""} ${faq.category || ""}`.toLowerCase();
+
+        return rule.categoryWords.some(keyword =>
+          content.includes(keyword)
+        );
+      });
+
+      if (candidates.length === 1) return candidates[0];
+
+      if (candidates.length > 1) {
+        const queryWords = new Set(text.split(" "));
+        let best = null;
+        let bestScore = 0;
+
+        for (const faq of candidates) {
+          const faqText =
+            `${faq.question || ""} ${faq.category || ""}`
+              .toLowerCase()
+              .replace(/[^a-z0-9\s]/g, " ");
+
+          const faqWords = new Set(faqText.split(/\s+/));
+          let score = 0;
+
+          for (const word of queryWords) {
+            if (word.length > 2 && faqWords.has(word)) score++;
+          }
+
+          if (score > bestScore) {
+            bestScore = score;
+            best = faq;
+          }
+        }
+
+        if (best && bestScore >= 1) return best;
+      }
+    }
+  }
+
+  // Conservative fallback: only answer when enough words overlap.
   const stopWords = new Set([
     "a", "an", "the", "is", "are", "am", "do", "does",
     "did", "i", "me", "my", "we", "you", "your", "how",
@@ -20,7 +97,7 @@ function findAnswer(question, faqs) {
   ]);
 
   const queryWords = new Set(
-    normalize(question).filter(word => !stopWords.has(word))
+    text.split(" ").filter(word => word && !stopWords.has(word))
   );
 
   if (queryWords.size === 0) return null;
@@ -30,9 +107,11 @@ function findAnswer(question, faqs) {
 
   for (const faq of faqs) {
     const faqWords = new Set(
-      normalize(
-        `${faq.question} ${faq.category}`
-      ).filter(word => !stopWords.has(word))
+      `${faq.question || ""} ${faq.category || ""}`
+        .toLowerCase()
+        .replace(/[^a-z0-9\s]/g, " ")
+        .split(/\s+/)
+        .filter(word => word && !stopWords.has(word))
     );
 
     let matches = 0;
@@ -48,10 +127,8 @@ function findAnswer(question, faqs) {
     }
   }
 
-  // Avoid returning an answer when the match is too weak.
-  return bestScore >= 0.5 ? bestFaq : null;
+  return bestScore >= 0.7 ? bestFaq : null;
 }
-
 module.exports = (req, res) => {
   if (req.method !== "POST") {
     return res.status(405).json({

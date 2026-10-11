@@ -3,7 +3,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>DigiLocker Help Bot</title>
   <style>
     body {
@@ -15,57 +15,150 @@
     header {
       background: #174ea6;
       color: white;
-      padding: 28px 20px;
+      padding: 25px 16px;
       text-align: center;
     }
     main {
-      max-width: 760px;
-      margin: 35px auto;
-      padding: 28px;
+      max-width: 720px;
+      margin: 30px auto;
+      padding: 24px;
       background: white;
       border-radius: 12px;
       box-shadow: 0 4px 18px #00000012;
     }
-    h1 { margin-top: 0; }
-    .note {
-      background: #edf4ff;
-      padding: 16px;
+    #chat {
+      border: 1px solid #dbe2ea;
       border-radius: 8px;
-      line-height: 1.6;
+      padding: 14px;
+      height: 320px;
+      overflow-y: auto;
+      margin: 18px 0;
+      background: #fafcff;
     }
-    footer {
-      text-align: center;
-      padding: 20px;
+    .message {
+      margin: 10px 0;
+      padding: 10px 12px;
+      border-radius: 8px;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+    .user {
+      background: #dbeafe;
+      margin-left: 15%;
+    }
+    .bot {
+      background: #e8f5e9;
+      margin-right: 15%;
+    }
+    form {
+      display: flex;
+      gap: 8px;
+    }
+    input {
+      flex: 1;
+      min-width: 0;
+      padding: 12px;
+      border: 1px solid #b8c3d1;
+      border-radius: 7px;
+      font-size: 16px;
+    }
+    button {
+      padding: 12px 18px;
+      border: 0;
+      border-radius: 7px;
+      background: #174ea6;
+      color: white;
+      cursor: pointer;
+      font-size: 16px;
+    }
+    button:disabled {
+      opacity: .6;
+      cursor: wait;
+    }
+    .note {
       color: #64748b;
       font-size: 14px;
+      line-height: 1.5;
     }
   </style>
 </head>
 <body>
   <header>
     <h1>DigiLocker Help Bot</h1>
-    <p>Your assistant for DigiLocker frequently asked questions</p>
+    <p>Ask questions about registration, OTPs, account access and digital documents.</p>
   </header>
 
   <main>
-    <h2>How can I help you?</h2>
-    <p>
-      Ask about registration, OTP issues, account access,
-      or digital documents using the chat widget on this page.
+    <h2>Chat with the assistant</h2>
+    <p class="note">
+      This educational chatbot uses Dialogflow ES and a curated FAQ dataset.
+      Do not enter your Aadhaar number, OTP, password or security PIN.
     </p>
-    <div class="note">
-      <strong>About this project</strong>
-      <p>
-        This educational NLP chatbot uses Dialogflow ES to
-        understand questions and a Vercel webhook to retrieve
-        answers from a curated FAQ dataset.
-      </p>
+
+    <div id="chat" aria-live="polite">
+      <div class="message bot">
+        Hello! Welcome to the DigiLocker Help Bot. How can I help you?
+      </div>
     </div>
+
+    <form id="chatForm">
+      <input id="message" type="text"
+        placeholder="Type your question..."
+        aria-label="Your question" required>
+      <button id="sendButton" type="submit">Send</button>
+    </form>
+
+    <p class="note">
+      For official services, visit
+      <a href="https://www.digilocker.gov.in/">DigiLocker</a>.
+    </p>
   </main>
 
-  <footer>
-    Educational project · For official services, visit
-    <a href="https://www.digilocker.gov.in/">DigiLocker</a>.
-  </footer>
+  <script>
+    const form = document.getElementById("chatForm");
+    const input = document.getElementById("message");
+    const chat = document.getElementById("chat");
+    const sendButton = document.getElementById("sendButton");
+
+    function addMessage(text, sender) {
+      const item = document.createElement("div");
+      item.className = "message " + sender;
+      item.textContent = text;
+      chat.appendChild(item);
+      chat.scrollTop = chat.scrollHeight;
+      return item;
+    }
+
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+
+      const message = input.value.trim();
+      if (!message) return;
+
+      addMessage(message, "user");
+      input.value = "";
+      sendButton.disabled = true;
+
+      const waiting = addMessage("Thinking...", "bot");
+
+      try {
+        const response = await fetch("/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message })
+        });
+
+        const data = await response.json();
+        waiting.textContent = data.answer || data.error ||
+          "Sorry, I couldn't retrieve an answer.";
+      } catch (error) {
+        waiting.textContent =
+          "Unable to contact the chatbot. Please try again.";
+      } finally {
+        sendButton.disabled = false;
+        input.focus();
+      }
+    });
+  </script>
 </body>
 </html>
